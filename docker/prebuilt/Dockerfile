@@ -6,6 +6,8 @@ LABEL maintainer "Nelson Yalta <nyalta21@gmail.com>"
 ARG THIS_USER
 ARG THIS_UID
 
+#possible solution to nvidia-smi not found
+
 # Add user to container
 RUN if [ ! -z "${THIS_UID}"  ]; then \
     useradd -m -r -u ${THIS_UID} -g root ${THIS_USER}; \

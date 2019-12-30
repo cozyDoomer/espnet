@@ -1,0 +1,3 @@
+./run.sh --docker_gpu 0 --docker_egs david-attenborough/tts1 --docker_folders /export/david-attenborough/tts1 --ngpu 1 --train_config conf/tuning/train_pytorch_transformer.v3.single.yaml --stage 0
+
+docker run -it -v /run/media/windisk/Users/chrun/Documents/Projects/espnet/dataset:/dataset espnet/espnet:gpu-cuda10.0-cudnn7-u18-user-christian bin/bash

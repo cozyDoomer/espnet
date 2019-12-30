@@ -97,13 +97,14 @@ if [ "${docker_gpu}" == "-1" ]; then
   container_name="espnet_cpu_${this_time}"
 else
   # --rm erase the container when the training is finished.
+  #cmd0="NV_GPU='${docker_gpu}' gpus='all' docker"
   cmd0="NV_GPU='${docker_gpu}' nvidia-docker"
   container_name="espnet_gpu${docker_gpu//,/_}_${this_time}"
 fi
 
 cd ..
 
-vols="-v ${PWD}/egs:/espnet/egs -v ${PWD}/espnet:/espnet/espnet -v ${PWD}/test:/espnet/test -v ${PWD}/utils:/espnet/utils"
+vols="-v ${PWD}/egs:/espnet/egs -v ${PWD}/espnet:/espnet/espnet -v ${PWD}/test:/espnet/test -v ${PWD}/utils:/espnet/utils -v ${PWD}/dataset:/dataset"
 if [ ! -z "${docker_folders}" ]; then
   docker_folders=$(echo ${docker_folders} | tr "," "\n")
   for i in ${docker_folders[@]}
