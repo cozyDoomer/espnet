@@ -12,7 +12,7 @@ backend=pytorch
 stage=-1
 stop_stage=100
 ngpu=1       # number of gpus ("0" uses cpu, otherwise use gpu)
-nj=32        # numebr of parallel jobs
+nj=32        # number of parallel jobs
 dumpdir=dump # directory to dump full features
 verbose=1    # verbose option (if set > 0, get more log)
 N=0          # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -30,19 +30,19 @@ win_length="" # window length
 
 # char or phn
 # In the case of phn, input transcription is convered to phoneem using https://github.com/Kyubyong/g2p.
-trans_type="char"
+trans_type="phn"
 
 # config files
-train_config=conf/train_pytorch_tacotron2.yaml # you can select from conf or conf/tuning.
+train_config=conf/train_pytorch_transformer.v3.yaml # you can select from conf or conf/tuning.
                                                # now we support tacotron2, transformer, and fastspeech
                                                # see more info in the header of each config.
 decode_config=conf/decode.yaml
 
 # knowledge distillation related
-teacher_model_path="" # TODO: add pretrained model!
+teacher_model_path=""
 teacher_decode_config=conf/decode_for_knowledge_dist.yaml
 do_filtering=false     # whether to do filtering using focus rate
-focus_rate_thres=0.65  # for phn taco2 around 0.65, phn transformer around 0.9
+focus_rate_thres=0.9  # for phn taco2 around 0.65, phn transformer around 0.9
                        # if you want to do filtering please carefully check this threshold
 
 # decoding related
@@ -73,6 +73,12 @@ train_set="${trans_type}_train_no_dev"
 dev_set="${trans_type}_dev"
 eval_set="${trans_type}_eval"
 
+# add pretrained model info in "conf/tuning/train_pytorch_transformer.v3.yaml"
+pretrained_model="model.last1.avg.best"
+pretrained_model_path="model/phn/${pretrained_model}"
+train_config="$(change_yaml.py -a pretrained-model="${pretrained_model_path}" \
+    -o "conf/$(basename "${train_config}" .yaml).${pretrained_model}.yaml" "${train_config}")"
+
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
     echo "stage -1: Data Download"
     local/data_download.sh ${db_root}
@@ -83,7 +89,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
 
-    rm data/char_train/*
+    #[ -d "data/char_train" ] && rm data/char_train/*
     local/data_prep.sh ${db_root}/david-attenborough data/${trans_type}_train ${trans_type}
 
     utils/validate_data_dir.sh --no-feats data/${trans_type}_train
@@ -119,7 +125,7 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     utils/subset_data_dir.sh --first data/${trans_type}_train ${n} data/${train_set}
 
     # compute statistics for global mean-variance normalization
-    compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
+    # compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 
     # dump features for training
     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta false \
@@ -136,10 +142,10 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
     mkdir -p data/lang_1${trans_type}/
-    echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    text2token.py -s 1 -n 1 --trans_type ${trans_type} data/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
-    | sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
-    wc -l ${dict}
+    #echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
+    #text2token.py -s 1 -n 1 --trans_type ${trans_type} data/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
+    #| sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
+    #wc -l ${dict}
 
     # make json labels
     data2json.sh --feat ${feat_tr_dir}/feats.scp --trans_type ${trans_type} \
