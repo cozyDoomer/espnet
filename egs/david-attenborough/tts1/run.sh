@@ -30,10 +30,12 @@ win_length="" # window length
 
 # char or phn
 # In the case of phn, input transcription is convered to phoneem using https://github.com/Kyubyong/g2p.
-trans_type="phn"
+trans_type="char"
 
 # config files
-train_config=conf/train_pytorch_transformer.v3.yaml # you can select from conf or conf/tuning.
+train_config=conf/train_pytorch_tacotron2.v3.yaml 
+           # conf/train_pytorch_transformer.v3.yaml 
+                                               # you can select from conf or conf/tuning.
                                                # now we support tacotron2, transformer, and fastspeech
                                                # see more info in the header of each config.
 decode_config=conf/decode.yaml
@@ -42,7 +44,7 @@ decode_config=conf/decode.yaml
 teacher_model_path=""
 teacher_decode_config=conf/decode_for_knowledge_dist.yaml
 do_filtering=false     # whether to do filtering using focus rate
-focus_rate_thres=0.9  # for phn taco2 around 0.65, phn transformer around 0.9
+focus_rate_thres=0.65  # for phn taco2 around 0.65, phn transformer around 0.9
                        # if you want to do filtering please carefully check this threshold
 
 # decoding related
@@ -75,7 +77,7 @@ eval_set="${trans_type}_eval"
 
 # add pretrained model info in "conf/tuning/train_pytorch_transformer.v3.yaml"
 pretrained_model="model.last1.avg.best"
-pretrained_model_path="model/phn/${pretrained_model}"
+pretrained_model_path="model/${trans_type}/${pretrained_model}"
 train_config="$(change_yaml.py -a pretrained-model="${pretrained_model_path}" \
     -o "conf/$(basename "${train_config}" .yaml).${pretrained_model}.yaml" "${train_config}")"
 

@@ -1,6 +1,11 @@
 # training
+## transformer
 
 ./run.sh --docker_gpu 0 --docker_egs david-attenborough/tts1 --docker_folders /export/david-attenborough/tts1 --ngpu 1 --train_config conf/tuning/train_pytorch_transformer.v3.yaml --stage 0
+
+## tacotron2
+
+./run.sh --docker_gpu 0 --docker_egs david-attenborough/tts1 --docker_folders /export/david-attenborough/tts1 --ngpu 1 --train_config conf/tuning/train_pytorch_tacotron2.v3.yaml --stage 0
 
 # inference
 
