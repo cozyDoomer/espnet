@@ -8,6 +8,8 @@
 
 import logging
 
+from distutils.util import strtobool
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -21,29 +23,23 @@ from espnet.nets.pytorch_backend.tacotron2.cbhg import CBHGLoss
 from espnet.nets.pytorch_backend.tacotron2.decoder import Decoder
 from espnet.nets.pytorch_backend.tacotron2.encoder import Encoder
 from espnet.nets.tts_interface import TTSInterface
-from espnet.utils.cli_utils import strtobool
 from espnet.utils.fill_missing_args import fill_missing_args
 
 
 class GuidedAttentionLoss(torch.nn.Module):
     """Guided attention loss function module.
-
     This module calculates the guided attention loss described in `Efficiently Trainable Text-to-Speech System Based
     on Deep Convolutional Networks with Guided Attention`_, which forces the attention to be diagonal.
-
     .. _`Efficiently Trainable Text-to-Speech System Based on Deep Convolutional Networks with Guided Attention`:
         https://arxiv.org/abs/1710.08969
-
     """
 
     def __init__(self, sigma=0.4, alpha=1.0, reset_always=True):
         """Initialize guided attention loss module.
-
         Args:
             sigma (float, optional): Standard deviation to control how close attention to a diagonal.
             alpha (float, optional): Scaling coefficient (lambda).
             reset_always (bool, optional): Whether to always reset masks.
-
         """
         super(GuidedAttentionLoss, self).__init__()
         self.sigma = sigma
@@ -58,15 +54,12 @@ class GuidedAttentionLoss(torch.nn.Module):
 
     def forward(self, att_ws, ilens, olens):
         """Calculate forward propagation.
-
         Args:
             att_ws (Tensor): Batch of attention weights (B, T_max_out, T_max_in).
             ilens (LongTensor): Batch of input lenghts (B,).
             olens (LongTensor): Batch of output lenghts (B,).
-
         Returns:
             Tensor: Guided attention loss value.
-
         """
         if self.guided_attn_masks is None:
             self.guided_attn_masks = self._make_guided_attention_masks(ilens, olens).to(att_ws.device)
@@ -90,7 +83,6 @@ class GuidedAttentionLoss(torch.nn.Module):
     @staticmethod
     def _make_guided_attention_mask(ilen, olen, sigma):
         """Make guided attention mask.
-
         Examples:
             >>> guided_attn_mask =_make_guided_attention(5, 5, 0.4)
             >>> guided_attn_mask.shape
@@ -111,7 +103,6 @@ class GuidedAttentionLoss(torch.nn.Module):
                     [0.5422, 0.0831, 0.0831],
                     [0.7506, 0.2934, 0.0000],
                     [0.8858, 0.5422, 0.0831]])
-
         """
         grid_x, grid_y = torch.meshgrid(torch.arange(olen), torch.arange(ilen))
         grid_x, grid_y = grid_x.float(), grid_y.float()
@@ -120,16 +111,13 @@ class GuidedAttentionLoss(torch.nn.Module):
     @staticmethod
     def _make_masks(ilens, olens):
         """Make masks indicating non-padded part.
-
         Args:
             ilens (LongTensor or List): Batch of lengths (B,).
             olens (LongTensor or List): Batch of lengths (B,).
-
         Returns:
             Tensor: Mask tensor indicating non-padded part.
                     dtype=torch.uint8 in PyTorch 1.2-
                     dtype=torch.bool in PyTorch 1.2+ (including 1.2)
-
         Examples:
             >>> ilens, olens = [5, 2], [8, 5]
             >>> _make_mask(ilens, olens)
@@ -149,7 +137,6 @@ class GuidedAttentionLoss(torch.nn.Module):
                      [0, 0, 0, 0, 0],
                      [0, 0, 0, 0, 0],
                      [0, 0, 0, 0, 0]]], dtype=torch.uint8)
-
         """
         in_masks = make_non_pad_mask(ilens)  # (B, T_in)
         out_masks = make_non_pad_mask(olens)  # (B, T_out)
@@ -161,12 +148,10 @@ class Tacotron2Loss(torch.nn.Module):
 
     def __init__(self, use_masking=True, use_weighted_masking=False, bce_pos_weight=20.0):
         """Initialize Tactoron2 loss module.
-
         Args:
             use_masking (bool): Whether to apply masking for padded part in loss calculation.
             use_weighted_masking (bool): Whether to apply weighted masking in loss calculation.
             bce_pos_weight (float): Weight of positive sample of stop token.
-
         """
         super(Tacotron2Loss, self).__init__()
         assert (use_masking != use_weighted_masking) or not use_masking
@@ -180,12 +165,8 @@ class Tacotron2Loss(torch.nn.Module):
         self.bce_criterion = torch.nn.BCEWithLogitsLoss(reduction=reduction,
                                                         pos_weight=torch.tensor(bce_pos_weight))
 
-        # NOTE(kan-bayashi): register pre hook function for the compatibility
-        self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
-
     def forward(self, after_outs, before_outs, logits, ys, labels, olens):
         """Calculate forward propagation.
-
         Args:
             after_outs (Tensor): Batch of outputs after postnets (B, Lmax, odim).
             before_outs (Tensor): Batch of outputs before postnets (B, Lmax, odim).
@@ -193,12 +174,10 @@ class Tacotron2Loss(torch.nn.Module):
             ys (Tensor): Batch of padded target features (B, Lmax, odim).
             labels (LongTensor): Batch of the sequences of stop token labels (B, Lmax).
             olens (LongTensor): Batch of the lengths of each target (B,).
-
         Returns:
             Tensor: L1 loss value.
             Tensor: Mean square error loss value.
             Tensor: Binary cross entropy loss value.
-
         """
         # make mask and apply it
         if self.use_masking:
@@ -228,31 +207,14 @@ class Tacotron2Loss(torch.nn.Module):
 
         return l1_loss, mse_loss, bce_loss
 
-    def _load_state_dict_pre_hook(self, state_dict, prefix, local_metadata, strict,
-                                  missing_keys, unexpected_keys, error_msgs):
-        """Apply pre hook fucntion before loading state dict.
-
-        From v.0.6.1 `bce_criterion.pos_weight` param is registered as a parameter but
-        old models do not include it and as a result, it causes missing key error when
-        loading old model parameter. This function solve the issue by adding param in
-        state dict before loading as a pre hook function of the `load_state_dict` method.
-
-        """
-        key = prefix + "bce_criterion.pos_weight"
-        if key not in state_dict:
-            state_dict[key] = self.bce_criterion.pos_weight
-
 
 class Tacotron2(TTSInterface, torch.nn.Module):
     """Tacotron2 module for end-to-end text-to-speech (E2E-TTS).
-
     This is a module of Spectrogram prediction network in Tacotron2 described in `Natural TTS Synthesis
     by Conditioning WaveNet on Mel Spectrogram Predictions`_, which converts the sequence of characters
     into the sequence of Mel-filterbanks.
-
     .. _`Natural TTS Synthesis by Conditioning WaveNet on Mel Spectrogram Predictions`:
        https://arxiv.org/abs/1712.05884
-
     """
 
     @staticmethod
@@ -354,7 +316,6 @@ class Tacotron2(TTSInterface, torch.nn.Module):
 
     def __init__(self, idim, odim, args=None):
         """Initialize Tacotron2 module.
-
         Args:
             idim (int): Dimension of the inputs.
             odim (int): Dimension of the outputs.
@@ -399,7 +360,6 @@ class Tacotron2(TTSInterface, torch.nn.Module):
                 - use-guided-attn-loss (bool): Whether to use guided attention loss.
                 - guided-attn-loss-sigma (float) Sigma in guided attention loss.
                 - guided-attn-loss-lamdba (float): Lambda in guided attention loss.
-
         """
         # initialize base classes
         TTSInterface.__init__(self)
@@ -509,20 +469,17 @@ class Tacotron2(TTSInterface, torch.nn.Module):
         if args.pretrained_model is not None:
             self.load_pretrained_model(args.pretrained_model)
 
-    def forward(self, xs, ilens, ys, labels, olens, spembs=None, extras=None, *args, **kwargs):
+    def forward(self, xs, ilens, ys, labels, olens, spembs=None, spcs=None, *args, **kwargs):
         """Calculate forward propagation.
-
         Args:
             xs (Tensor): Batch of padded character ids (B, Tmax).
             ilens (LongTensor): Batch of lengths of each input batch (B,).
             ys (Tensor): Batch of padded target features (B, Lmax, odim).
             olens (LongTensor): Batch of the lengths of each target (B,).
             spembs (Tensor, optional): Batch of speaker embedding vectors (B, spk_embed_dim).
-            extras (Tensor, optional): Batch of groundtruth spectrograms (B, Lmax, spc_dim).
-
+            spcs (Tensor, optional): Batch of groundtruth spectrograms (B, Lmax, spc_dim).
         Returns:
             Tensor: Loss value.
-
         """
         # remove unnecessary padded part (for multi-gpus)
         max_in = max(ilens)
@@ -574,12 +531,12 @@ class Tacotron2(TTSInterface, torch.nn.Module):
         # caluculate cbhg loss
         if self.use_cbhg:
             # remove unnecessary padded part (for multi-gpus)
-            if max_out != extras.shape[1]:
-                extras = extras[:, :max_out]
+            if max_out != spcs.shape[1]:
+                spcs = spcs[:, :max_out]
 
             # caluculate cbhg outputs & loss and report them
             cbhg_outs, _ = self.cbhg(after_outs, olens)
-            cbhg_l1_loss, cbhg_mse_loss = self.cbhg_loss(cbhg_outs, extras, olens)
+            cbhg_l1_loss, cbhg_mse_loss = self.cbhg_loss(cbhg_outs, spcs, olens)
             loss = loss + cbhg_l1_loss + cbhg_mse_loss
             report_keys += [
                 {'cbhg_l1_loss': cbhg_l1_loss.item()},
@@ -593,7 +550,6 @@ class Tacotron2(TTSInterface, torch.nn.Module):
 
     def inference(self, x, inference_args, spemb=None, *args, **kwargs):
         """Generate the sequence of features given the sequences of characters.
-
         Args:
             x (Tensor): Input sequence of characters (T,).
             inference_args (Namespace):
@@ -601,30 +557,22 @@ class Tacotron2(TTSInterface, torch.nn.Module):
                 - minlenratio (float): Minimum length ratio in inference.
                 - maxlenratio (float): Maximum length ratio in inference.
             spemb (Tensor, optional): Speaker embedding vector (spk_embed_dim).
-
         Returns:
             Tensor: Output sequence of features (L, odim).
             Tensor: Output sequence of stop probabilities (L,).
             Tensor: Attention weights (L, T).
-
         """
         # get options
         threshold = inference_args.threshold
         minlenratio = inference_args.minlenratio
         maxlenratio = inference_args.maxlenratio
-        use_att_constraint = getattr(inference_args, "use_att_constraint", False)  # keep compatibility
-        backward_window = inference_args.backward_window if use_att_constraint else 0
-        forward_window = inference_args.forward_window if use_att_constraint else 0
 
         # inference
         h = self.enc.inference(x)
         if self.spk_embed_dim is not None:
             spemb = F.normalize(spemb, dim=0).unsqueeze(0).expand(h.size(0), -1)
             h = torch.cat([h, spemb], dim=-1)
-        outs, probs, att_ws = self.dec.inference(h, threshold, minlenratio, maxlenratio,
-                                                 use_att_constraint=use_att_constraint,
-                                                 backward_window=backward_window,
-                                                 forward_window=forward_window)
+        outs, probs, att_ws = self.dec.inference(h, threshold, minlenratio, maxlenratio)
 
         if self.use_cbhg:
             cbhg_outs = self.cbhg.inference(outs)
@@ -632,20 +580,16 @@ class Tacotron2(TTSInterface, torch.nn.Module):
         else:
             return outs, probs, att_ws
 
-    def calculate_all_attentions(self, xs, ilens, ys, spembs=None, keep_tensor=False, *args, **kwargs):
+    def calculate_all_attentions(self, xs, ilens, ys, spembs=None, *args, **kwargs):
         """Calculate all of the attention weights.
-
         Args:
             xs (Tensor): Batch of padded character ids (B, Tmax).
             ilens (LongTensor): Batch of lengths of each input batch (B,).
             ys (Tensor): Batch of padded target features (B, Lmax, odim).
             olens (LongTensor): Batch of the lengths of each target (B,).
             spembs (Tensor, optional): Batch of speaker embedding vectors (B, spk_embed_dim).
-            keep_tensor (bool, optional): Whether to keep original tensor.
-
         Returns:
-            Union[ndarray, Tensor]: Batch of attention weights (B, Lmax, Tmax).
-
+            numpy.ndarray: Batch of attention weights (B, Lmax, Tmax).
         """
         # check ilens type (should be list of int)
         if isinstance(ilens, torch.Tensor) or isinstance(ilens, np.ndarray):
@@ -660,21 +604,15 @@ class Tacotron2(TTSInterface, torch.nn.Module):
             att_ws = self.dec.calculate_all_attentions(hs, hlens, ys)
         self.train()
 
-        if keep_tensor:
-            return att_ws
-        else:
-            return att_ws.cpu().numpy()
+        return att_ws.cpu().numpy()
 
     @property
     def base_plot_keys(self):
         """Return base key names to plot during training. keys should match what `chainer.reporter` reports.
-
         If you add the key `loss`, the reporter will report `main/loss` and `validation/main/loss` values.
         also `loss.png` will be created as a figure visulizing `main/loss` and `validation/main/loss` values.
-
         Returns:
             list: List of strings which are base keys to plot during training.
-
         """
         plot_keys = ['loss', 'l1_loss', 'mse_loss', 'bce_loss']
         if self.use_guided_attn_loss:
