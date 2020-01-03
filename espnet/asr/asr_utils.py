@@ -507,16 +507,27 @@ def torch_load(path, model):
 
     """
     if 'snapshot' in path:
-        model_state_dict = torch.load(path, map_location=lambda storage, loc: storage)['model']
+        pretrained_dict = torch.load(path, map_location=lambda storage, loc: storage)['model']
     else:
-        model_state_dict = torch.load(path, map_location=lambda storage, loc: storage)
+        pretrained_dict = torch.load(path, map_location=lambda storage, loc: storage)
+    
+    model_state_dict = model.state_dict()
 
+    # filter out unnecessary keys
+    missing = [k for k, _ in model_state_dict.items() if k not in pretrained_dict]
+    logging.warning("{} is missing from the state dict of the pretrained model.".format(missing))
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_state_dict}
+
+    # overwrite entries in the existing state dict
+    model_state_dict.update(pretrained_dict) 
+
+    # load the new state dict
     if hasattr(model, 'module'):
         model.module.load_state_dict(model_state_dict)
     else:
         model.load_state_dict(model_state_dict)
 
-    del model_state_dict
+    del pretrained_dict, model_state_dict
 
 
 def torch_resume(snapshot_path, trainer):
